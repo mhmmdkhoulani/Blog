@@ -1,8 +1,9 @@
 const { Router } = require("express");
 const userController = require("../controllers/userController");
+const authMiddleware = require("../middlewares/authMiddleware");
 const router = Router();
 
-router.get("/", userController.getAllUsers);
+router.get("/", authMiddleware.protect, userController.getAllUsers);
 router.post("/", userController.addUser);
 router.patch("/:id", userController.updateUser);
 router.delete("/:id", userController.deleteUser);
