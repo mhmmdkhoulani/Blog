@@ -28,6 +28,14 @@ const userSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now() },
   profilePic: { type: String },
   isActive: { type: Boolean, default: true, select: false },
+  passwordChangedAt: { type: Date, default: Date.now() },
+  role: {
+    type: String,
+    enum: ["user", "admin", "mod"],
+    default: "user",
+  },
+  resetPasswordToken: { type: String },
+  passwordTokenExpiredAt: { type: Date },
 });
 
 const User = mongoose.model("User", userSchema);

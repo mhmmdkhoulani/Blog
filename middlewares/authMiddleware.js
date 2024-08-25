@@ -3,12 +3,12 @@ const User = require("../models/user");
 exports.protect = async (req, res, next) => {
   //Check if there is jwt
   try {
-    const authentication = req.headers.authentication;
-    if (!authentication) {
+    const authorization = req.headers.authorization;
+    if (!authorization) {
       return res.status(401).send("No jwt");
     }
-    const token = authentication.split(" ")[1];
-    const decoded = jwt.verify(token, "this-is-best-secret-key");
+    const token = authorization.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
     const user = await User.findById(decoded.id).select("+isActive");
     if (!user) {
       return res.status(401).send({ status: "fail", message: "user deleted" });
@@ -16,6 +16,15 @@ exports.protect = async (req, res, next) => {
     if (!user.isActive) {
       return res.status(401).send({ status: "fail", message: "user inactive" });
     }
+    const changedDate = new Date(user.passwordChangedAt).getTime() / 1000;
+    if (changedDate > decoded.iat) {
+      return res.status(401).send({
+        status: "fail",
+        message:
+          "Password has been changed since last time, please login again",
+      });
+    }
+    req.user = user;
     next();
   } catch (error) {
     res.status(500).send({ status: "fail", message: error.message });
