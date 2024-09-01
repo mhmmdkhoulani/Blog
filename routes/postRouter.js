@@ -7,6 +7,12 @@ const postRouter = Router();
 //Get endpoints
 postRouter.get("/", postController.getAllPosts);
 postRouter.post("/", authMiddleware.protect, postController.createPost);
+postRouter.patch("/:postId", authMiddleware.protect, postController.updatePost);
+postRouter.delete(
+  "/:postId",
+  authMiddleware.protect,
+  postController.deletePost
+);
 postRouter.post(
   "/:postId/comment",
   authMiddleware.protect,
@@ -17,4 +23,15 @@ postRouter.post(
   authMiddleware.protect,
   postController.toggleLike
 );
+postRouter.delete(
+  "/comments/:commentId",
+  authMiddleware.protect,
+  postController.deleteComment
+);
+postRouter.patch(
+  "/comments/:commentId",
+  authMiddleware.protect,
+  postController.updateComment
+);
+
 module.exports = postRouter;
