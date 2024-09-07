@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const userRouter = require("./routes/userRouter");
 const authRouter = require("./routes/authRouter");
 const postRouter = require("./routes/postRouter");
-
+const globalErrorHandler = require("./middlewares/globalErrorHandler");
 const app = express();
 app.use(express.json());
 
@@ -24,6 +24,8 @@ dbConnect();
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/posts", postRouter);
+
+app.use(globalErrorHandler);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

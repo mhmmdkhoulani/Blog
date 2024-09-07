@@ -6,6 +6,7 @@ const postRouter = Router();
 
 //Get endpoints
 postRouter.get("/", postController.getAllPosts);
+postRouter.get("/:postId", postController.getPostById);
 postRouter.post("/", authMiddleware.protect, postController.createPost);
 postRouter.patch("/:postId", authMiddleware.protect, postController.updatePost);
 postRouter.delete(

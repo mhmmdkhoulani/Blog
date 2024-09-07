@@ -2,6 +2,7 @@ const Post = require("../models/postModel");
 const User = require("../models/user");
 const Comment = require("../models/commentModel");
 const Like = require("../models/likeModel");
+const postService = require("../services/postService");
 
 exports.getAllPosts = async (req, res) => {
   try {
@@ -14,18 +15,15 @@ exports.getAllPosts = async (req, res) => {
   }
 };
 
-exports.createComment = async (req, res) => {
+exports.createComment = async (req, res, next) => {
   const postId = req.params.postId;
   const userId = req.user._id;
   const commentData = { ...req.body, user: userId, post: postId };
   try {
-    const comment = await Comment.create(commentData);
-    const post = await Post.findById(postId);
-    post.commentsCount += 1;
-    await post.save();
+    const comment = await postService.createComment(commentData);
     return res.status(201).send({ status: "success", data: comment });
   } catch (error) {
-    return res.status(500).send({ status: "fail", message: error.message });
+    next(error);
   }
 };
 
@@ -66,31 +64,16 @@ exports.toggleLike = async (req, res) => {
   }
 };
 
-exports.deleteComment = async (req, res) => {
+exports.deleteComment = async (req, res, next) => {
   const commentId = req.params.commentId;
   const userId = req.user._id;
   try {
-    const comment = await Comment.findById(commentId);
-    const user = await User.findById(userId);
-
-    if (comment.user.toString() !== user._id.toString()) {
-      if (user.role != "admin") {
-        return res.status(401).send({
-          status: "fail",
-          message: "You are not authorized to delete this comment",
-        });
-      }
-    }
-    const post = await Post.findById(comment.post);
-    post.commentsCount -= 1;
-    await post.save();
-    await comment.deleteOne();
-
+    await postService.deleteComment(commentId, userId);
     return res
       .status(200)
       .send({ status: "success", message: "Comment deleted successfully!" });
   } catch (error) {
-    return res.status(500).send({ status: "fail", message: error.message });
+    next(error);
   }
 };
 
@@ -176,5 +159,34 @@ exports.getPostsByUser = async (req, res) => {
       .send({ status: "success", result: posts.length, data: posts });
   } catch (error) {
     return res.status(500).send({ status: "fail", message: error.message });
+  }
+};
+
+exports.getPostById = async (req, res) => {
+  const id = req.params.postId;
+  try {
+    const post = await Post.findById(id).lean();
+
+    if (!post)
+      return res
+        .status(404)
+        .send({ status: "fail", message: "Post not found!" });
+
+    const comments = await Comment.find({ post: id })
+      .populate("user", "firstName lastName")
+      .select("content");
+    const data = { ...post, comments: comments };
+
+    return res.status(200).send({ status: "success", post: data });
+  } catch (error) {
+    return res.status(500).send({ status: "error", message: error.message });
+  }
+};
+
+exports.sayHello = async (req, res, next) => {
+  try {
+    await postService.sayHello();
+  } catch (error) {
+    next(error);
   }
 };
