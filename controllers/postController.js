@@ -1,17 +1,75 @@
-const Post = require("../models/postModel");
-const User = require("../models/user");
-const Comment = require("../models/commentModel");
-const Like = require("../models/likeModel");
 const postService = require("../services/postService");
+const commentService = require("../services/commentService");
+const userService = require("../services/userService");
 
-exports.getAllPosts = async (req, res) => {
+exports.getAllPosts = async (req, res, next) => {
+  const category = req.query.category || null;
   try {
-    const posts = await Post.find();
+    const posts = await postService.getAllPosts(category);
     return res
       .status(200)
       .send({ status: "success", result: posts.length, data: posts });
   } catch (error) {
-    return res.status(500).send({ status: "fail", message: error.message });
+    next(error);
+  }
+};
+
+exports.getPostDetails = async (req, res, next) => {
+  const id = req.params.postId;
+  try {
+    const post = await postService.getPostDetails(id);
+
+    return res.status(200).send({ status: "success", post: post });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.createPost = async (req, res, next) => {
+  const id = req.user._id;
+  const postData = { ...req.body, user: id };
+  try {
+    const post = await postService.createPost(postData);
+    return res.status(201).send({ status: "success", data: post });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.updatePost = async (req, res, next) => {
+  const postId = req.params.postId;
+  const userId = req.user._id;
+
+  try {
+    const post = await postService.updatePost(postId, userId, req.body);
+    return res.status(200).send({ status: "success", data: post });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deletePost = async (req, res, next) => {
+  const postId = req.params.postId;
+  const user = req.user;
+
+  try {
+    await postService.deletePost(postId, user);
+    return res.status(204).send("Deleted!");
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getPostsByUser = async (req, res, next) => {
+  const userId = req.params.userId || req.user._id;
+
+  try {
+    const posts = await userService.getPosts(userId);
+    return res
+      .status(200)
+      .send({ status: "success", result: posts.length, data: posts });
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -20,55 +78,35 @@ exports.createComment = async (req, res, next) => {
   const userId = req.user._id;
   const commentData = { ...req.body, user: userId, post: postId };
   try {
-    const comment = await postService.createComment(commentData);
+    const comment = await commentService.createComment(commentData);
     return res.status(201).send({ status: "success", data: comment });
   } catch (error) {
     next(error);
   }
 };
-
-exports.createPost = async (req, res) => {
-  const id = req.user._id;
-  const postData = { ...req.body, user: id };
-  try {
-    const post = await Post.create(postData);
-    return res.status(201).send({ status: "success", data: post });
-  } catch (error) {
-    return res.status(500).send({ status: "fail", message: error.message });
-  }
-};
-
-exports.toggleLike = async (req, res) => {
+exports.updateComment = async (req, res, next) => {
+  const commentId = req.params.commentId;
   const userId = req.user._id;
-  const postId = req.params.postId;
-  let message;
+  const commentContent = req.body.content;
   try {
-    const like = { user: userId, post: postId };
-    const isLiked = await Like.findOne(like);
+    const comment = await commentService.updateComment(
+      commentId,
+      userId,
+      commentContent
+    );
 
-    const post = await Post.findById(postId);
-    if (!isLiked) {
-      await Like.create(like);
-      post.likes += 1;
-      message = "Post Liked";
-    } else {
-      await Like.findByIdAndDelete(isLiked._id);
-      post.likes -= 1;
-      message = "Post Unliked";
-    }
-    await post.save();
-
-    return res.status(201).send({ status: "success", message: message });
+    return res
+      .status(200)
+      .send({ status: "success", message: "Comment updated successfully!" });
   } catch (error) {
-    return res.status(500).send({ status: "fail", message: error.message });
+    next(error);
   }
 };
-
 exports.deleteComment = async (req, res, next) => {
   const commentId = req.params.commentId;
   const userId = req.user._id;
   try {
-    await postService.deleteComment(commentId, userId);
+    await commentService.deleteComment(commentId, userId);
     return res
       .status(200)
       .send({ status: "success", message: "Comment deleted successfully!" });
@@ -77,115 +115,13 @@ exports.deleteComment = async (req, res, next) => {
   }
 };
 
-exports.updateComment = async (req, res) => {
-  const commentId = req.params.commentId;
+exports.toggleLike = async (req, res, next) => {
   const userId = req.user._id;
-  try {
-    const comment = await Comment.findById(commentId);
-    const user = await User.findById(userId);
-
-    if (comment.user.toString() !== user._id.toString()) {
-      return res.status(401).send({
-        status: "fail",
-        message: "You are not authorized to edit this comment",
-      });
-    }
-    comment.content = req.body.content;
-    await comment.save();
-
-    return res
-      .status(200)
-      .send({ status: "success", message: "Comment updated successfully!" });
-  } catch (error) {
-    return res.status(500).send({ status: "fail", message: error.message });
-  }
-};
-exports.updatePost = async (req, res) => {
   const postId = req.params.postId;
-  const userId = req.user._id;
 
   try {
-    const post = await Post.findById(postId);
-    if (!post)
-      return res
-        .status(404)
-        .send({ status: "success", message: "Post not found" });
-    if (post.user.toString() != userId.toString())
-      res.status(401).send({ status: "success", message: "Unauthorized" });
-    const updatePost = await Post.findByIdAndUpdate(postId, req.body, {
-      new: true,
-      runValidators: true,
-    });
-    return res.status(200).send({ status: "success", data: updatePost });
-  } catch (error) {
-    return res.status(500).send({ status: "fail", message: error.message });
-  }
-};
-
-exports.deletePost = async (req, res) => {
-  const postId = req.params.postId;
-  const userId = req.user._id;
-
-  try {
-    const post = await Post.findById(postId);
-    if (!post)
-      return res
-        .status(404)
-        .send({ status: "fail", message: "Post not found" });
-    if (post.user.toString() != userId.toString()) {
-      if (req.user.role != "admin") {
-        return res
-          .status(401)
-          .send({ status: "fail", message: "Unauthorized" });
-      }
-    }
-    await Comment.deleteMany({ post: postId });
-    await Like.deleteMany({ post: postId });
-
-    await post.deleteOne();
-    return res.status(204).send("Deleted!");
-  } catch (error) {
-    return res.status(500).send({ status: "fail", message: error.message });
-  }
-};
-
-exports.getPostsByUser = async (req, res) => {
-  const userId = req.params.userId || req.user._id;
-
-  try {
-    const posts = await Post.find({ user: userId });
-    return res
-      .status(200)
-      .send({ status: "success", result: posts.length, data: posts });
-  } catch (error) {
-    return res.status(500).send({ status: "fail", message: error.message });
-  }
-};
-
-exports.getPostById = async (req, res) => {
-  const id = req.params.postId;
-  try {
-    const post = await Post.findById(id).lean();
-
-    if (!post)
-      return res
-        .status(404)
-        .send({ status: "fail", message: "Post not found!" });
-
-    const comments = await Comment.find({ post: id })
-      .populate("user", "firstName lastName")
-      .select("content");
-    const data = { ...post, comments: comments };
-
-    return res.status(200).send({ status: "success", post: data });
-  } catch (error) {
-    return res.status(500).send({ status: "error", message: error.message });
-  }
-};
-
-exports.sayHello = async (req, res, next) => {
-  try {
-    await postService.sayHello();
+    const result = await postService.toggleLike(postId, userId);
+    return res.status(200).send({ status: "success", message: result });
   } catch (error) {
     next(error);
   }

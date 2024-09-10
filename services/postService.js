@@ -1,47 +1,19 @@
 const Post = require("../models/postModel");
 const Comment = require("../models/commentModel");
+const Like = require("../models/likeModel");
 const User = require("../models/user");
 const ApiError = require("../utils/apiError");
-exports.getAllPosts = async () => {
-  const posts = await Post.find();
-  return posts;
-};
-
-exports.createComment = async (commentData) => {
+exports.getAllPosts = async (category) => {
   try {
-    const post = await getPostById(commentData.post);
-    const comment = await Comment.create(commentData);
-    post.commentsCount += 1;
-    await post.save();
-    return comment;
-  } catch (error) {
-    throw error;
-  }
-};
-
-exports.deleteComment = async (commentId, userId) => {
-  try {
-    const comment = await Comment.findById(commentId);
-    const user = await User.findById(userId);
-
-    if (comment.user.toString() !== user._id.toString()) {
-      if (user.role != "admin") {
-        throw new ApiError(
-          "You are not authorized to delete this comment",
-          401
-        );
-      }
+    if (category) {
+      return await Post.find({ category });
     }
-    const post = await getPostById(comment.post);
-    post.commentsCount -= 1;
-    await post.save();
-    await comment.deleteOne();
+    return await Post.find();
   } catch (error) {
     throw error;
   }
 };
-
-const getPostById = async (id) => {
+exports.getPostById = async (id) => {
   try {
     const post = await Post.findById(id);
     if (!post) {
@@ -52,9 +24,75 @@ const getPostById = async (id) => {
     throw error;
   }
 };
-exports.sayHello = async () => {
+
+exports.getPostDetails = async (id) => {
   try {
-    throw new ApiError("This is from new Api Error class", 500);
+    const post = await this.getPostById(id);
+
+    const comments = await Comment.find({ post: id })
+      .populate("user", "firstName lastName")
+      .select("content");
+
+    return { ...post.toObject(), comments: comments };
+  } catch (error) {
+    throw error;
+  }
+};
+exports.createPost = async (postData) => {
+  try {
+    const post = await Post.create(postData);
+    return post;
+  } catch (error) {
+    throw error;
+  }
+};
+
+exports.updatePost = async (postId, userId, postData) => {
+  try {
+    const post = await this.getPostById(postId);
+    if (post.user.toString() != userId.toString())
+      throw new ApiError("Unauthorized", 401);
+    const updatedPost = await Post.findByIdAndUpdate(postId, postData, {
+      new: true,
+      runValidators: true,
+    });
+    return updatedPost;
+  } catch (error) {
+    throw error;
+  }
+};
+
+exports.deletePost = async (postId, user) => {
+  try {
+    const post = await this.getPostById(postId);
+    if (post.user.toString() != user._id.toString()) {
+      if (userId.role != "admin") throw new ApiError("Unauthorized", 401);
+    }
+    await Comment.deleteMany({ post: postId });
+    await Like.deleteMany({ post: postId });
+    await Post.findByIdAndDelete(postId);
+  } catch (error) {
+    throw error;
+  }
+};
+
+exports.toggleLike = async (postId, userId) => {
+  let message;
+  try {
+    const post = await this.getPostById(postId);
+    const like = { user: userId, post: postId };
+    const isLiked = await Like.findOne(like);
+    if (!isLiked) {
+      await Like.create(like);
+      post.likes += 1;
+      message = "Post Liked";
+    } else {
+      await Like.findByIdAndDelete(isLiked._id);
+      post.likes -= 1;
+      message = "Post Unliked";
+    }
+    await post.save();
+    return message;
   } catch (error) {
     throw error;
   }
